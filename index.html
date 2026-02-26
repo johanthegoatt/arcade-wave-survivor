@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Arcade Wave Survivor</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Exo+2:wght@500;700;800&family=Inter:wght@400;600&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <header>
+        <p class="kicker">Wave Survival Arcade</p>
+        <h1>Arcade Wave Survivor</h1>
+        <p>Move, shoot, and survive escalating enemy waves with responsive controls.</p>
+      </header>
+
+      <section class="layout">
+        <div class="stage-wrap">
+          <canvas id="arena" width="960" height="540" aria-label="wave survival arena"></canvas>
+          <div id="overlay" class="overlay" hidden>
+            <h2>Game Over</h2>
+            <button id="restartBtn" type="button">Restart Run</button>
+          </div>
+        </div>
+
+        <aside class="panel">
+          <button id="startBtn" type="button">Start</button>
+          <button id="pauseBtn" type="button" disabled>Pause</button>
+
+          <div class="stats">
+            <p>Score <strong id="score">0</strong></p>
+            <p>Wave <strong id="wave">1</strong></p>
+            <p>Lives <strong id="lives">3</strong></p>
+            <p>Enemies <strong id="enemies">0</strong></p>
+          </div>
+
+          <p class="meta">Controls: <kbd>WASD</kbd> move, mouse aim, hold click/space to fire.</p>
+        </aside>
+      </section>
+    </main>
+
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>
