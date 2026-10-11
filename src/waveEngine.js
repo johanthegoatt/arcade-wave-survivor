@@ -10,29 +10,44 @@ function normalize(x, y) {
   return { x: x / length, y: y / length };
 }
 
-function spawnEnemy(state, randomFn = Math.random) {
-  const side = Math.floor(randomFn() * 4);
-  const padding = 22;
-  let x = 0;
-  let y = 0;
+// Enemies never appear closer than this to the player, so a wave cannot
+// open with a hit the player had no time to see.
+export const SAFE_SPAWN_DISTANCE = 220;
+// Enemies push apart when closer than this (centre to centre), so a wave
+// reads as a crowd instead of one stacked blob.
+export const SEPARATION_DISTANCE = 30;
+const SEPARATION_STRENGTH = 0.9;
 
-  if (side === 0) {
-    x = randomFn() * state.width;
-    y = -padding;
-  } else if (side === 1) {
-    x = state.width + padding;
-    y = randomFn() * state.height;
-  } else if (side === 2) {
-    x = randomFn() * state.width;
-    y = state.height + padding;
-  } else {
-    x = -padding;
-    y = randomFn() * state.height;
+function edgePoint(state, side, t) {
+  const padding = 22;
+  if (side === 0) return { x: t * state.width, y: -padding };
+  if (side === 1) return { x: state.width + padding, y: t * state.height };
+  if (side === 2) return { x: t * state.width, y: state.height + padding };
+  return { x: -padding, y: t * state.height };
+}
+
+function spawnEnemy(state, randomFn = Math.random) {
+  const player = state.player;
+  let point = edgePoint(state, Math.floor(randomFn() * 4), randomFn());
+
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    if (Math.hypot(point.x - player.x, point.y - player.y) >= SAFE_SPAWN_DISTANCE) {
+      break;
+    }
+    point = edgePoint(state, Math.floor(randomFn() * 4), randomFn());
+  }
+
+  if (Math.hypot(point.x - player.x, point.y - player.y) < SAFE_SPAWN_DISTANCE) {
+    // Still too close (player hugging an edge): use the far side of the arena.
+    point = {
+      x: player.x < state.width / 2 ? state.width + 22 : -22,
+      y: player.y < state.height / 2 ? state.height + 22 : -22,
+    };
   }
 
   return {
-    x,
-    y,
+    x: point.x,
+    y: point.y,
     radius: 13,
     speed: 68 + state.wave * 7,
   };
@@ -130,12 +145,36 @@ export function stepGame(state, input = {}, dtMs = 16, randomFn = Math.random) {
     }))
     .filter((bullet) => bullet.x >= -30 && bullet.x <= next.width + 30 && bullet.y >= -30 && bullet.y <= next.height + 30);
 
-  next.enemies = next.enemies.map((enemy) => {
-    const direction = normalize(next.player.x - enemy.x, next.player.y - enemy.y);
+  const seconds = dtMs / 1000;
+  next.enemies = next.enemies.map((enemy, index, all) => {
+    const chase = normalize(next.player.x - enemy.x, next.player.y - enemy.y);
+
+    // Separation steering (Reynolds 1987): push away from close neighbours,
+    // weighted by how close they are.
+    let pushX = 0;
+    let pushY = 0;
+    for (let j = 0; j < all.length; j += 1) {
+      if (j === index) continue;
+      const dx = enemy.x - all[j].x;
+      const dy = enemy.y - all[j].y;
+      const distance = Math.hypot(dx, dy);
+      if (distance === 0) {
+        // Exactly on top of each other: split them by index.
+        pushX += index < j ? -1 : 1;
+        continue;
+      }
+      if (distance < SEPARATION_DISTANCE) {
+        const weight = (SEPARATION_DISTANCE - distance) / SEPARATION_DISTANCE;
+        pushX += (dx / distance) * weight;
+        pushY += (dy / distance) * weight;
+      }
+    }
+
+    const heading = normalize(chase.x + pushX * SEPARATION_STRENGTH, chase.y + pushY * SEPARATION_STRENGTH);
     return {
       ...enemy,
-      x: enemy.x + direction.x * enemy.speed * (dtMs / 1000),
-      y: enemy.y + direction.y * enemy.speed * (dtMs / 1000),
+      x: enemy.x + heading.x * enemy.speed * seconds,
+      y: enemy.y + heading.y * enemy.speed * seconds,
     };
   });
 

@@ -53,3 +53,37 @@ test("enemy touching player removes life", () => {
   const next = stepGame(state, {}, 16, () => 0.2);
   assert.equal(next.lives, 2);
 });
+
+test("enemies never spawn within the safe distance of the player", async () => {
+  const { SAFE_SPAWN_DISTANCE } = await import("../src/waveEngine.js");
+  let seed = 7;
+  const rand = () => {
+    seed = (seed * 1103515245 + 12345) % 2147483648;
+    return seed / 2147483648;
+  };
+  for (const [px, py] of [[480, 270], [20, 20], [940, 20], [20, 520], [940, 520], [480, 15]]) {
+    const state = createInitialState({}, rand);
+    state.player.x = px;
+    state.player.y = py;
+    state.wave = 6;
+    const spawned = spawnWave(state, rand);
+    for (const enemy of spawned.enemies) {
+      assert.ok(Math.hypot(enemy.x - px, enemy.y - py) >= SAFE_SPAWN_DISTANCE);
+    }
+  }
+});
+
+test("stacked enemies spread out instead of moving as one blob", () => {
+  const state = createInitialState({}, () => 0.5);
+  state.player.x = 480;
+  state.player.y = 270;
+  state.enemies = Array.from({ length: 5 }, () => ({ x: 100, y: 270, radius: 13, speed: 80 }));
+  let next = state;
+  for (let i = 0; i < 60; i += 1) {
+    next = stepGame(next, {}, 16, () => 0.5);
+  }
+  const xs = next.enemies.map((e) => e.x);
+  const ys = next.enemies.map((e) => e.y);
+  const spread = Math.max(...xs) - Math.min(...xs) + Math.max(...ys) - Math.min(...ys);
+  assert.ok(spread > 20, `spread ${spread}`);
+});
