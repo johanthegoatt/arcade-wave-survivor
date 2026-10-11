@@ -1,4 +1,4 @@
-import { createInitialState, stepGame } from "./src/waveEngine.js";
+import { createInitialState, stepGame, chooseUpgrade, UPGRADES } from "./src/waveEngine.js";
 
 const elements = {
   canvas: document.getElementById("arena"),
@@ -10,6 +10,10 @@ const elements = {
   wave: document.getElementById("wave"),
   lives: document.getElementById("lives"),
   enemies: document.getElementById("enemies"),
+  upgradeOverlay: document.getElementById("upgradeOverlay"),
+  upgradeTitle: document.getElementById("upgradeTitle"),
+  upgradeChoices: document.getElementById("upgradeChoices"),
+  upgradesTaken: document.getElementById("upgradesTaken"),
 };
 
 const context = elements.canvas.getContext("2d");
@@ -37,11 +41,53 @@ function setOverlayVisible(visible) {
   elements.overlay.hidden = !visible;
 }
 
+let shownChoices = "";
+
+function syncUpgrades() {
+  const choices = appState.game.upgradeChoices;
+  const key = choices.join(",");
+  if (key === shownChoices) return;
+  shownChoices = key;
+
+  elements.upgradeOverlay.hidden = choices.length === 0;
+  elements.upgradeChoices.replaceChildren(
+    ...choices.map((id, index) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      const title = document.createElement("strong");
+      title.textContent = `${index + 1}. ${UPGRADES[id].label}`;
+      const note = document.createElement("small");
+      note.textContent = UPGRADES[id].note;
+      button.append(title, note);
+      button.addEventListener("click", () => pickUpgrade(id));
+      return button;
+    }),
+  );
+  if (choices.length > 0) {
+    elements.upgradeTitle.textContent = `Wave ${appState.game.wave} cleared`;
+    // Drop held keys so the player does not walk off when play resumes.
+    inputState.shoot = false;
+    inputState.left = inputState.right = inputState.up = inputState.down = false;
+    refreshMoveVector();
+    elements.upgradeChoices.querySelector("button")?.focus();
+  }
+
+  const taken = appState.game.upgradesTaken.map((id) => UPGRADES[id].label);
+  elements.upgradesTaken.textContent = taken.length ? taken.join(", ") : "none yet";
+}
+
+function pickUpgrade(id) {
+  appState.game = chooseUpgrade(appState.game, id);
+  appState.lastFrameAt = 0;
+  elements.canvas.focus?.();
+}
+
 function syncStats() {
   elements.score.textContent = String(appState.game.score);
   elements.wave.textContent = String(appState.game.wave);
   elements.lives.textContent = String(appState.game.lives);
   elements.enemies.textContent = String(appState.game.enemies.length);
+  syncUpgrades();
 }
 
 function drawScene() {
@@ -88,6 +134,7 @@ function refreshMoveVector() {
 }
 
 function resetGame() {
+  shownChoices = "";
   appState.game = createInitialState({ width: elements.canvas.width, height: elements.canvas.height });
   appState.running = false;
   appState.paused = false;
@@ -169,25 +216,58 @@ elements.canvas.addEventListener("mouseup", () => {
   inputState.shoot = false;
 });
 
+const MOVE_KEYS = {
+  w: "up",
+  arrowup: "up",
+  s: "down",
+  arrowdown: "down",
+  a: "left",
+  arrowleft: "left",
+  d: "right",
+  arrowright: "right",
+};
+
 document.addEventListener("keydown", (event) => {
   const key = event.key.toLowerCase();
-  if (key === "w") inputState.up = true;
-  if (key === "s") inputState.down = true;
-  if (key === "a") inputState.left = true;
-  if (key === "d") inputState.right = true;
-  if (key === " ") inputState.shoot = true;
+  const choices = appState.game.upgradeChoices;
+  if (choices.length > 0) {
+    const index = Number(key) - 1;
+    if (index >= 0 && index < choices.length) pickUpgrade(choices[index]);
+    return;
+  }
+  if (MOVE_KEYS[key]) {
+    event.preventDefault();
+    inputState[MOVE_KEYS[key]] = true;
+  }
+  if (key === " ") {
+    if (event.target instanceof HTMLButtonElement) return;
+    event.preventDefault();
+    inputState.shoot = true;
+  }
+  if (key === "p") togglePause();
   refreshMoveVector();
 });
 
 document.addEventListener("keyup", (event) => {
   const key = event.key.toLowerCase();
-  if (key === "w") inputState.up = false;
-  if (key === "s") inputState.down = false;
-  if (key === "a") inputState.left = false;
-  if (key === "d") inputState.right = false;
+  if (MOVE_KEYS[key]) inputState[MOVE_KEYS[key]] = false;
   if (key === " ") inputState.shoot = false;
   refreshMoveVector();
 });
+
+// Pause when the tab is hidden or the window loses focus, and let go of any
+// held keys: a keyup that happens in another window never reaches the page,
+// which left the player running or firing on their own.
+function pauseForFocusLoss() {
+  inputState.shoot = false;
+  inputState.left = inputState.right = inputState.up = inputState.down = false;
+  refreshMoveVector();
+  if (appState.running && !appState.paused) togglePause();
+}
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden) pauseForFocusLoss();
+});
+window.addEventListener("blur", pauseForFocusLoss);
 
 resetGame();
 requestAnimationFrame(animate);

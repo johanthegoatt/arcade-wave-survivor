@@ -55,9 +55,14 @@ function spawnEnemy(state, randomFn = Math.random) {
 
 export function spawnWave(state, randomFn = Math.random) {
   const enemyCount = 3 + state.wave * 2;
-  const enemies = Array.from({ length: enemyCount }, () => spawnEnemy(state, randomFn));
+  const firstId = state.nextEnemyId ?? 1;
+  const enemies = Array.from({ length: enemyCount }, (_, i) => ({
+    ...spawnEnemy(state, randomFn),
+    id: firstId + i,
+  }));
   return {
     ...state,
+    nextEnemyId: firstId + enemyCount,
     enemies,
   };
 }
@@ -73,6 +78,10 @@ export function createInitialState({ width = 960, height = 540 } = {}, randomFn 
       speed: 250,
       fireCooldownMs: 0,
       invulnMs: 0,
+      fireDelayMs: 120,
+      bulletSpeed: 440,
+      pierce: 0,
+      spread: 0,
     },
     bullets: [],
     enemies: [],
@@ -80,6 +89,8 @@ export function createInitialState({ width = 960, height = 540 } = {}, randomFn 
     wave: 1,
     lives: 3,
     gameOver: false,
+    upgradeChoices: [],
+    upgradesTaken: [],
   };
 
   return spawnWave(base, randomFn);
@@ -113,17 +124,23 @@ function stepPlayer(state, input, dtMs) {
     const direction = normalize(aimX, aimY);
 
     if (direction.x !== 0 || direction.y !== 0) {
+      const angles = [0];
+      for (let k = 1; k <= next.player.spread; k += 1) {
+        angles.push(-0.16 * k, 0.16 * k);
+      }
+      const baseAngle = Math.atan2(direction.y, direction.x);
       next.bullets = [
         ...next.bullets,
-        {
+        ...angles.map((offset) => ({
           x: next.player.x,
           y: next.player.y,
-          vx: direction.x * 440,
-          vy: direction.y * 440,
+          vx: Math.cos(baseAngle + offset) * next.player.bulletSpeed,
+          vy: Math.sin(baseAngle + offset) * next.player.bulletSpeed,
           radius: 4,
-        },
+          hitsLeft: 1 + next.player.pierce,
+        })),
       ];
-      next.player.fireCooldownMs = 120;
+      next.player.fireCooldownMs = next.player.fireDelayMs;
     }
   }
 
@@ -131,7 +148,8 @@ function stepPlayer(state, input, dtMs) {
 }
 
 export function stepGame(state, input = {}, dtMs = 16, randomFn = Math.random) {
-  if (state.gameOver) {
+  if (state.gameOver || state.upgradeChoices.length > 0) {
+    // Time stands still while the player picks an upgrade.
     return state;
   }
 
@@ -182,10 +200,13 @@ export function stepGame(state, input = {}, dtMs = 16, randomFn = Math.random) {
   const enemyAlive = new Array(next.enemies.length).fill(true);
 
   for (const bullet of next.bullets) {
-    let consumed = false;
-    for (let i = 0; i < next.enemies.length; i += 1) {
+    let hitsLeft = bullet.hitsLeft ?? 1;
+    const already = bullet.hitIds ?? [];
+    const hitIds = [...already];
+    for (let i = 0; i < next.enemies.length && hitsLeft > 0; i += 1) {
       if (!enemyAlive[i]) continue;
       const enemy = next.enemies[i];
+      if (enemy.id !== undefined && already.includes(enemy.id)) continue;
       const dx = bullet.x - enemy.x;
       const dy = bullet.y - enemy.y;
       const collide = dx * dx + dy * dy <= (bullet.radius + enemy.radius) ** 2;
@@ -193,12 +214,12 @@ export function stepGame(state, input = {}, dtMs = 16, randomFn = Math.random) {
 
       enemyAlive[i] = false;
       next.score += 14;
-      consumed = true;
-      break;
+      hitsLeft -= 1;
+      if (enemy.id !== undefined) hitIds.push(enemy.id);
     }
 
-    if (!consumed) {
-      remainingBullets.push(bullet);
+    if (hitsLeft > 0) {
+      remainingBullets.push({ ...bullet, hitsLeft, hitIds });
     }
   }
 
@@ -226,9 +247,58 @@ export function stepGame(state, input = {}, dtMs = 16, randomFn = Math.random) {
   }
 
   if (next.enemies.length === 0) {
-    next.wave += 1;
-    next = spawnWave(next, randomFn);
+    next.bullets = [];
+    next.upgradeChoices = pickUpgradeChoices(next, randomFn);
   }
 
   return next;
+}
+
+// One pick of three after each cleared wave, the usual roguelite reward beat
+// (Vampire Survivors, Brotato): small, stackable, and readable at a glance.
+export const UPGRADES = {
+  rapid: { label: "Faster fire", note: "Shoot 20% more often", max: 5 },
+  swift: { label: "Quicker feet", note: "Move 12% faster", max: 4 },
+  pierce: { label: "Piercing shots", note: "Each shot passes through one more enemy", max: 3 },
+  spread: { label: "Spread shot", note: "Two extra shots fan out", max: 2 },
+  heart: { label: "Extra life", note: "Get one life back", max: Infinity },
+};
+
+function timesTaken(state, id) {
+  return state.upgradesTaken.filter((taken) => taken === id).length;
+}
+
+export function pickUpgradeChoices(state, randomFn = Math.random, count = 3) {
+  const pool = Object.keys(UPGRADES).filter((id) => timesTaken(state, id) < UPGRADES[id].max);
+  const choices = [];
+  while (choices.length < count && pool.length > 0) {
+    const index = Math.min(pool.length - 1, Math.floor(randomFn() * pool.length));
+    choices.push(pool.splice(index, 1)[0]);
+  }
+  return choices;
+}
+
+export function chooseUpgrade(state, id, randomFn = Math.random) {
+  if (!state.upgradeChoices.includes(id)) {
+    return state;
+  }
+
+  const player = { ...state.player };
+  let lives = state.lives;
+  if (id === "rapid") player.fireDelayMs = Math.round(player.fireDelayMs / 1.2);
+  if (id === "swift") player.speed = Math.round(player.speed * 1.12);
+  if (id === "pierce") player.pierce += 1;
+  if (id === "spread") player.spread += 1;
+  if (id === "heart") lives += 1;
+  player.invulnMs = 1200;
+
+  const next = {
+    ...state,
+    player,
+    lives,
+    wave: state.wave + 1,
+    upgradeChoices: [],
+    upgradesTaken: [...state.upgradesTaken, id],
+  };
+  return spawnWave(next, randomFn);
 }

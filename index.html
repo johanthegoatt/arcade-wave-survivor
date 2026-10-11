@@ -27,6 +27,11 @@
             <h2>Game Over</h2>
             <button id="restartBtn" type="button">Restart Run</button>
           </div>
+          <div id="upgradeOverlay" class="overlay upgrade-overlay" hidden>
+            <h2 id="upgradeTitle">Wave cleared</h2>
+            <p>Pick one. Press 1, 2 or 3.</p>
+            <div id="upgradeChoices" class="upgrade-choices"></div>
+          </div>
         </div>
 
         <aside class="panel">
@@ -40,7 +45,8 @@
             <p>Enemies <strong id="enemies">0</strong></p>
           </div>
 
-          <p class="meta">Controls: <kbd>WASD</kbd> move, mouse aim, hold click/space to fire.</p>
+          <p class="meta">Controls: <kbd>WASD</kbd> or arrow keys move, mouse aim, hold click/space to fire, <kbd>P</kbd> pause. After each wave, pick an upgrade.</p>
+          <p class="meta">Upgrades: <span id="upgradesTaken">none yet</span></p>
         </aside>
       </section>
     </main>

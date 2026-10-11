@@ -4,8 +4,9 @@
 Arcade Wave Survivor is a top-down browser survival shooter with escalating enemy waves and responsive controls.
 
 ## Features
-- Continuous wave progression
-- WASD movement + mouse/space firing
+- Continuous wave progression with an upgrade pick (one of three) after every cleared wave: faster fire, quicker feet, piercing shots, spread shot or an extra life
+- Enemies spawn at least 220 px from the player and spread out with separation steering instead of stacking
+- WASD or arrow keys movement + mouse/space firing, P to pause; pauses itself when the tab is hidden
 - Enemy chase behavior and collision damage
 - Bullet collisions with score rewards
 - Life system with invulnerability window

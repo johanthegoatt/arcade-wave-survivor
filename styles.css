@@ -76,6 +76,32 @@ header h1 {
   display: none !important;
 }
 
+.upgrade-choices {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 11rem));
+  gap: 0.6rem;
+  justify-content: center;
+}
+
+.upgrade-choices button {
+  display: grid;
+  gap: 0.25rem;
+  text-align: left;
+  color: #102038;
+  padding: 0.8rem;
+}
+
+.upgrade-choices button small {
+  font-weight: 400;
+  color: #3d5270;
+}
+
+@media (max-width: 640px) {
+  .upgrade-choices {
+    grid-template-columns: 1fr;
+  }
+}
+
 .panel {
   border: 1px solid var(--line);
   border-radius: 18px;
