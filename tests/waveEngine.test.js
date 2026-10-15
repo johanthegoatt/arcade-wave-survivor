@@ -153,3 +153,19 @@ test("upgrade picks skip ones already maxed out", async () => {
     assert.ok(!choices.includes("spread") && !choices.includes("pierce"));
   }
 });
+
+test("partial stick input moves the player proportionally slower", () => {
+  const state = createInitialState({}, () => 0.2);
+  const full = stepGame(state, { moveX: 1, moveY: 0 }, 100, () => 0.2);
+  const half = stepGame(state, { moveX: 0.5, moveY: 0 }, 100, () => 0.2);
+  const fullDistance = full.player.x - state.player.x;
+  const halfDistance = half.player.x - state.player.x;
+  assert.ok(Math.abs(halfDistance - fullDistance / 2) < 1e-9);
+});
+
+test("diagonal key input is not faster than straight movement", () => {
+  const state = createInitialState({}, () => 0.2);
+  const next = stepGame(state, { moveX: 1, moveY: 1 }, 100, () => 0.2);
+  const moved = Math.hypot(next.player.x - state.player.x, next.player.y - state.player.y);
+  assert.ok(Math.abs(moved - state.player.speed * 0.1) < 1e-9);
+});

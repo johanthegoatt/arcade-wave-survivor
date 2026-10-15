@@ -28,9 +28,14 @@ const inputState = {
   right: false,
   up: false,
   down: false,
+  stickX: 0,
+  stickY: 0,
 };
 
 let firePointerId = null;
+// Floating thumbstick: wherever the left thumb lands becomes the centre.
+const touchStick = { pointerId: null, originX: 0, originY: 0, x: 0, y: 0 };
+const STICK_RADIUS = 70;
 
 const appState = {
   game: createInitialState({ width: elements.canvas.width, height: elements.canvas.height }),
@@ -127,12 +132,26 @@ function drawScene() {
   context.lineTo(inputState.aimX, inputState.aimY);
   context.stroke();
 
+  if (touchStick.pointerId !== null) {
+    context.strokeStyle = "rgba(255,255,255,0.35)";
+    context.lineWidth = 3;
+    context.beginPath();
+    context.arc(touchStick.originX, touchStick.originY, STICK_RADIUS, 0, Math.PI * 2);
+    context.stroke();
+    context.fillStyle = "rgba(255,255,255,0.45)";
+    context.beginPath();
+    context.arc(touchStick.originX + touchStick.x, touchStick.originY + touchStick.y, 26, 0, Math.PI * 2);
+    context.fill();
+  }
+
   syncStats();
 }
 
 function refreshMoveVector() {
-  inputState.moveX = (inputState.right ? 1 : 0) - (inputState.left ? 1 : 0);
-  inputState.moveY = (inputState.down ? 1 : 0) - (inputState.up ? 1 : 0);
+  const keyX = (inputState.right ? 1 : 0) - (inputState.left ? 1 : 0);
+  const keyY = (inputState.down ? 1 : 0) - (inputState.up ? 1 : 0);
+  inputState.moveX = keyX || inputState.stickX;
+  inputState.moveY = keyY || inputState.stickY;
 }
 
 function resetGame() {
@@ -210,9 +229,53 @@ function aimAt(event) {
   inputState.aimY = ((event.clientY - rect.top) / rect.height) * elements.canvas.height;
 }
 
-elements.canvas.addEventListener("pointermove", aimAt);
+elements.canvas.addEventListener("pointermove", (event) => {
+  if (event.pointerId === touchStick.pointerId) {
+    updateStick(event);
+    return;
+  }
+  if (event.pointerType === "touch" && event.pointerId !== firePointerId) return;
+  aimAt(event);
+});
+
+function canvasPoint(event) {
+  const rect = elements.canvas.getBoundingClientRect();
+  return {
+    x: ((event.clientX - rect.left) / rect.width) * elements.canvas.width,
+    y: ((event.clientY - rect.top) / rect.height) * elements.canvas.height,
+  };
+}
+
+function updateStick(event) {
+  const point = canvasPoint(event);
+  let dx = point.x - touchStick.originX;
+  let dy = point.y - touchStick.originY;
+  const length = Math.hypot(dx, dy);
+  if (length > STICK_RADIUS) {
+    dx = (dx / length) * STICK_RADIUS;
+    dy = (dy / length) * STICK_RADIUS;
+  }
+  touchStick.x = dx;
+  touchStick.y = dy;
+  // Small dead zone so a resting thumb does not drift the player.
+  const magnitude = Math.min(1, length / STICK_RADIUS);
+  inputState.stickX = magnitude < 0.15 ? 0 : dx / STICK_RADIUS;
+  inputState.stickY = magnitude < 0.15 ? 0 : dy / STICK_RADIUS;
+  refreshMoveVector();
+}
 
 elements.canvas.addEventListener("pointerdown", (event) => {
+  if (event.pointerType === "touch" && touchStick.pointerId === null) {
+    const point = canvasPoint(event);
+    if (point.x < elements.canvas.width / 2) {
+      elements.canvas.setPointerCapture(event.pointerId);
+      touchStick.pointerId = event.pointerId;
+      touchStick.originX = point.x;
+      touchStick.originY = point.y;
+      updateStick(event);
+      return;
+    }
+  }
   aimAt(event);
   // Capture so a release outside the canvas still stops the gun.
   elements.canvas.setPointerCapture(event.pointerId);
@@ -221,6 +284,12 @@ elements.canvas.addEventListener("pointerdown", (event) => {
 });
 
 function releaseFire(event) {
+  if (event.pointerId === touchStick.pointerId) {
+    touchStick.pointerId = null;
+    inputState.stickX = inputState.stickY = 0;
+    refreshMoveVector();
+    return;
+  }
   if (event.pointerId !== firePointerId) return;
   firePointerId = null;
   inputState.shoot = false;
@@ -273,6 +342,8 @@ document.addEventListener("keyup", (event) => {
 function pauseForFocusLoss() {
   inputState.shoot = false;
   inputState.left = inputState.right = inputState.up = inputState.down = false;
+  inputState.stickX = inputState.stickY = 0;
+  touchStick.pointerId = null;
   refreshMoveVector();
   if (appState.running && !appState.paused) togglePause();
 }

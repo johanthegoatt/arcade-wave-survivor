@@ -106,7 +106,10 @@ function stepPlayer(state, input, dtMs) {
     },
   };
 
-  const movement = normalize(input.moveX ?? 0, input.moveY ?? 0);
+  // Analog input (touch stick) keeps its magnitude; keys and diagonals cap at 1.
+  const rawX = input.moveX ?? 0;
+  const rawY = input.moveY ?? 0;
+  const movement = Math.hypot(rawX, rawY) > 1 ? normalize(rawX, rawY) : { x: rawX, y: rawY };
   next.player.x = clamp(
     next.player.x + movement.x * next.player.speed * (dtMs / 1000),
     next.player.radius,
