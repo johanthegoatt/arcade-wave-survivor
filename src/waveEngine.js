@@ -176,6 +176,9 @@ export function stepGame(state, input = {}, dtMs = 16, randomFn = Math.random) {
   }
 
   let next = stepPlayer(state, input, dtMs);
+  // Per-step facts for the renderer (particles, sound); never read back by the sim.
+  next.events = [];
+  if (next.player.fireCooldownMs > state.player.fireCooldownMs) next.events.push({ type: "shot" });
 
   next.bullets = next.bullets
     .map((bullet) => ({
@@ -239,9 +242,13 @@ export function stepGame(state, input = {}, dtMs = 16, randomFn = Math.random) {
       if (enemy.id !== undefined) hitIds.push(enemy.id);
       const hp = (enemyHp[i] ?? enemy.hp ?? 1) - 1;
       enemyHp[i] = hp;
-      if (hp > 0) continue;
+      if (hp > 0) {
+        next.events.push({ type: "hit", x: enemy.x, y: enemy.y });
+        continue;
+      }
       enemyAlive[i] = false;
       next.score += ENEMY_KINDS[enemy.kind ?? "grunt"].score;
+      next.events.push({ type: "kill", x: enemy.x, y: enemy.y, kind: enemy.kind ?? "grunt" });
     }
 
     if (hitsLeft > 0) {
@@ -265,6 +272,7 @@ export function stepGame(state, input = {}, dtMs = 16, randomFn = Math.random) {
     if (collisions.length > 0) {
       next.lives -= 1;
       next.player.invulnMs = 1000;
+      next.events.push({ type: "hurt", x: next.player.x, y: next.player.y });
       next.enemies = next.enemies.filter((enemy) => !collisions.includes(enemy));
     }
   }
@@ -275,6 +283,7 @@ export function stepGame(state, input = {}, dtMs = 16, randomFn = Math.random) {
   }
 
   if (next.enemies.length === 0) {
+    next.events.push({ type: "cleared" });
     next.bullets = [];
     next.upgradeChoices = pickUpgradeChoices(next, randomFn);
   }

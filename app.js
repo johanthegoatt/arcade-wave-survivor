@@ -19,6 +19,52 @@ const elements = {
 const context = elements.canvas.getContext("2d");
 
 const ENEMY_COLORS = { grunt: "#ff6f8b", dasher: "#ffb347", brute: "#b18cff" };
+const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+
+const effects = { particles: [], shakeMs: 0, flashMs: 0 };
+const MAX_PARTICLES = 400;
+
+function burst(x, y, color, count, speed) {
+  for (let i = 0; i < count && effects.particles.length < MAX_PARTICLES; i += 1) {
+    const angle = Math.random() * Math.PI * 2;
+    const velocity = speed * (0.4 + Math.random() * 0.6);
+    effects.particles.push({
+      x,
+      y,
+      vx: Math.cos(angle) * velocity,
+      vy: Math.sin(angle) * velocity,
+      lifeMs: 380 + Math.random() * 260,
+      ageMs: 0,
+      color,
+    });
+  }
+}
+
+function applyEvents(events) {
+  for (const event of events ?? []) {
+    if (event.type === "kill") burst(event.x, event.y, ENEMY_COLORS[event.kind], event.kind === "brute" ? 26 : 14, 260);
+    if (event.type === "hit") burst(event.x, event.y, "#ffffff", 5, 160);
+    if (event.type === "hurt") {
+      burst(event.x, event.y, "#ffd46b", 20, 300);
+      effects.flashMs = 180;
+      if (!reducedMotion.matches) effects.shakeMs = 260;
+    }
+  }
+}
+
+function stepEffects(dt) {
+  effects.shakeMs = Math.max(0, effects.shakeMs - dt);
+  effects.flashMs = Math.max(0, effects.flashMs - dt);
+  const seconds = dt / 1000;
+  effects.particles = effects.particles.filter((particle) => {
+    particle.ageMs += dt;
+    particle.x += particle.vx * seconds;
+    particle.y += particle.vy * seconds;
+    particle.vx *= 0.92;
+    particle.vy *= 0.92;
+    return particle.ageMs < particle.lifeMs;
+  });
+}
 
 const inputState = {
   moveX: 0,
@@ -102,6 +148,12 @@ function syncStats() {
 function drawScene() {
   const game = appState.game;
 
+  context.save();
+  if (effects.shakeMs > 0) {
+    const strength = (effects.shakeMs / 260) * 7;
+    context.translate((Math.random() - 0.5) * strength, (Math.random() - 0.5) * strength);
+  }
+
   const gradient = context.createLinearGradient(0, 0, 0, game.height);
   gradient.addColorStop(0, "#121f37");
   gradient.addColorStop(1, "#182a4a");
@@ -141,6 +193,19 @@ function drawScene() {
   context.moveTo(game.player.x, game.player.y);
   context.lineTo(inputState.aimX, inputState.aimY);
   context.stroke();
+
+  for (const particle of effects.particles) {
+    context.globalAlpha = 1 - particle.ageMs / particle.lifeMs;
+    context.fillStyle = particle.color;
+    context.fillRect(particle.x - 2, particle.y - 2, 4, 4);
+  }
+  context.globalAlpha = 1;
+  context.restore();
+
+  if (effects.flashMs > 0) {
+    context.fillStyle = `rgba(255, 80, 100, ${(effects.flashMs / 180) * 0.25})`;
+    context.fillRect(0, 0, game.width, game.height);
+  }
 
   if (touchStick.pointerId !== null) {
     context.strokeStyle = "rgba(255,255,255,0.35)";
@@ -213,6 +278,7 @@ function animate(timestamp) {
       aimX: inputState.aimX,
       aimY: inputState.aimY,
     }, dt);
+    applyEvents(appState.game.events);
 
     if (appState.game.gameOver) {
       appState.running = false;
@@ -222,6 +288,7 @@ function animate(timestamp) {
     }
   }
 
+  stepEffects(dt);
   drawScene();
   requestAnimationFrame(animate);
 }

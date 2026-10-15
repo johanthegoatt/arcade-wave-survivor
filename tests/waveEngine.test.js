@@ -199,3 +199,17 @@ test("a brute survives two hits and dies on the third", () => {
   }
   assert.equal(state.score, ENEMY_KINDS.brute.score);
 });
+
+test("stepGame reports kills and damage as events", () => {
+  const state = createInitialState({}, () => 0.2);
+  state.enemies = [
+    { id: 1, x: 400, y: 300, radius: 13, speed: 0 },
+    { id: 2, x: state.player.x, y: state.player.y, radius: 13, speed: 0 },
+  ];
+  state.bullets = [{ x: 400, y: 300, vx: 0, vy: 0, radius: 4, hitsLeft: 1 }];
+  const next = stepGame(state, {}, 16, () => 0.2);
+  const types = next.events.map((event) => event.type);
+  assert.ok(types.includes("kill"));
+  assert.ok(types.includes("hurt"));
+  assert.ok(types.includes("cleared"));
+});
