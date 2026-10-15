@@ -25,6 +25,7 @@
           <canvas id="arena" width="960" height="540" aria-label="wave survival arena"></canvas>
           <div id="overlay" class="overlay" hidden>
             <h2>Game Over</h2>
+            <p id="gameOverSummary"></p>
             <button id="restartBtn" type="button">Restart Run</button>
           </div>
           <div id="upgradeOverlay" class="overlay upgrade-overlay" hidden>
@@ -44,6 +45,7 @@
             <p>Wave <strong id="wave">1</strong></p>
             <p>Lives <strong id="lives">3</strong></p>
             <p>Enemies <strong id="enemies">0</strong></p>
+            <p>Best <strong id="best">-</strong></p>
           </div>
 
           <p class="meta">Controls: <kbd>WASD</kbd> or arrow keys move, mouse aim, hold click/space to fire, <kbd>P</kbd> pause, <kbd>M</kbd> mute. On touch screens, drag the left half to move and touch the right half to aim and fire. After each wave, pick an upgrade.</p>

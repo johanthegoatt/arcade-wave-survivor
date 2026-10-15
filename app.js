@@ -15,6 +15,8 @@ const elements = {
   upgradeChoices: document.getElementById("upgradeChoices"),
   upgradesTaken: document.getElementById("upgradesTaken"),
   muteBtn: document.getElementById("muteBtn"),
+  best: document.getElementById("best"),
+  gameOverSummary: document.getElementById("gameOverSummary"),
 };
 
 const context = elements.canvas.getContext("2d");
@@ -103,6 +105,27 @@ function playEventSound(event) {
   if (event.type === "cleared") {
     blip({ type: "sine", from: 523, to: 784, durationMs: 220, volume: 0.08 });
   }
+}
+
+function loadBest() {
+  try {
+    const parsed = JSON.parse(readStored("aws-best") ?? "null");
+    if (parsed && Number.isFinite(parsed.score) && Number.isFinite(parsed.wave)) return parsed;
+  } catch {}
+  return { score: 0, wave: 0 };
+}
+
+let best = loadBest();
+
+function recordRun(game) {
+  const isNewBest = game.score > best.score;
+  if (isNewBest) {
+    best = { score: game.score, wave: game.wave };
+    writeStored("aws-best", JSON.stringify(best));
+  }
+  elements.gameOverSummary.textContent = isNewBest
+    ? `New best: ${game.score} points, wave ${game.wave}`
+    : `${game.score} points, wave ${game.wave}. Best is ${best.score}.`;
 }
 
 function setMuted(muted) {
@@ -215,6 +238,7 @@ function syncStats() {
   elements.wave.textContent = String(appState.game.wave);
   elements.lives.textContent = String(appState.game.lives);
   elements.enemies.textContent = String(appState.game.enemies.length);
+  elements.best.textContent = best.score ? `${best.score} (wave ${best.wave})` : "-";
   syncUpgrades();
 }
 
@@ -354,6 +378,7 @@ function animate(timestamp) {
     applyEvents(appState.game.events);
 
     if (appState.game.gameOver) {
+      recordRun(appState.game);
       appState.running = false;
       elements.startBtn.disabled = false;
       elements.pauseBtn.disabled = true;

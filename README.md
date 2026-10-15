@@ -10,6 +10,7 @@ Arcade Wave Survivor is a top-down browser survival shooter with escalating enem
 - Three enemy types: grunts, fast dashers from wave 3, and three-hit brutes from wave 5
 - Bullet collisions with score rewards
 - Life system with invulnerability window
+- Best score and wave saved in the browser
 - Unit-tested wave simulation engine
 - Static Vercel-ready deployment setup
 
