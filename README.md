@@ -6,7 +6,8 @@ Arcade Wave Survivor is a top-down browser survival shooter with escalating enem
 ## Features
 - Continuous wave progression with an upgrade pick (one of three) after every cleared wave: faster fire, quicker feet, piercing shots, spread shot or an extra life
 - Enemies spawn at least 220 px from the player and spread out with separation steering instead of stacking
-- WASD or arrow keys movement + mouse/space firing, P to pause; pauses itself when the tab is hidden
+- WASD or arrow keys movement + mouse/space firing, P to pause, M to mute; pauses itself when the tab is hidden
+- Touch thumbstick on phones and standard gamepad support
 - Three enemy types: grunts, fast dashers from wave 3, and three-hit brutes from wave 5
 - Bullet collisions with score rewards
 - Life system with invulnerability window
@@ -19,7 +20,7 @@ Arcade Wave Survivor is a top-down browser survival shooter with escalating enem
 cd arcade-wave-survivor
 npm run dev
 ```
-Open `http://127.0.0.1:8109/arcade-wave-survivor/index.html`.
+Open `http://localhost:8109`.
 
 ## Test
 ```bash

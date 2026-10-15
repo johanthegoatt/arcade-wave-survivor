@@ -378,7 +378,45 @@ function togglePause() {
   elements.pauseBtn.textContent = appState.paused ? "Resume" : "Pause";
 }
 
+// Standard mapping: left stick moves, right stick aims, any trigger or A fires.
+const PAD_DEAD_ZONE = 0.2;
+let padWasFiring = false;
+let padUpgradeLatch = false;
+
+function pollGamepad() {
+  const pad = [...(navigator.getGamepads?.() ?? [])].find((candidate) => candidate?.connected);
+  if (!pad) return;
+  const axis = (index) => (Math.abs(pad.axes[index] ?? 0) < PAD_DEAD_ZONE ? 0 : pad.axes[index]);
+  const pressed = (index) => Boolean(pad.buttons[index]?.pressed);
+
+  const choices = appState.game.upgradeChoices;
+  if (choices.length > 0) {
+    const picked = [2, 3, 1].findIndex((button) => pressed(button));
+    if (picked >= 0 && picked < choices.length && !padUpgradeLatch) pickUpgrade(choices[picked]);
+    padUpgradeLatch = picked >= 0;
+    return;
+  }
+  padUpgradeLatch = false;
+
+  if (pressed(9) && !appState.running) startGame();
+  inputState.stickX = axis(0);
+  inputState.stickY = axis(1);
+  refreshMoveVector();
+
+  const aimX = axis(2);
+  const aimY = axis(3);
+  if (aimX || aimY) {
+    const player = appState.game.player;
+    inputState.aimX = player.x + aimX * 120;
+    inputState.aimY = player.y + aimY * 120;
+  }
+  const firing = pressed(0) || pressed(5) || pressed(7) || Boolean(aimX || aimY);
+  if (firing || padWasFiring) inputState.shoot = firing;
+  padWasFiring = firing;
+}
+
 function animate(timestamp) {
+  pollGamepad();
   if (!appState.lastFrameAt) {
     appState.lastFrameAt = timestamp;
   }
