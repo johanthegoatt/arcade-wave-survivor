@@ -14,6 +14,7 @@ const elements = {
   upgradeTitle: document.getElementById("upgradeTitle"),
   upgradeChoices: document.getElementById("upgradeChoices"),
   upgradesTaken: document.getElementById("upgradesTaken"),
+  muteBtn: document.getElementById("muteBtn"),
 };
 
 const context = elements.canvas.getContext("2d");
@@ -40,8 +41,80 @@ function burst(x, y, color, count, speed) {
   }
 }
 
+function readStored(key) {
+  try {
+    return localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+function writeStored(key, value) {
+  try {
+    localStorage.setItem(key, value);
+  } catch {}
+}
+
+// Tiny WebAudio synth: no asset files, and it only starts after a user gesture.
+const sound = {
+  context: null,
+  muted: readStored("aws-muted") === "1",
+  lastShotAt: 0,
+};
+
+function audio() {
+  if (sound.muted) return null;
+  if (!sound.context) {
+    const AudioCtor = window.AudioContext ?? window.webkitAudioContext;
+    if (!AudioCtor) return null;
+    sound.context = new AudioCtor();
+  }
+  if (sound.context.state === "suspended") sound.context.resume();
+  return sound.context;
+}
+
+function blip({ type = "square", from, to, durationMs, volume }) {
+  const ctx = audio();
+  if (!ctx) return;
+  const now = ctx.currentTime;
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.type = type;
+  osc.frequency.setValueAtTime(from, now);
+  osc.frequency.exponentialRampToValueAtTime(to, now + durationMs / 1000);
+  gain.gain.setValueAtTime(volume, now);
+  gain.gain.exponentialRampToValueAtTime(0.0001, now + durationMs / 1000);
+  osc.connect(gain).connect(ctx.destination);
+  osc.start(now);
+  osc.stop(now + durationMs / 1000 + 0.02);
+}
+
+function playEventSound(event) {
+  if (event.type === "shot") {
+    // Rapid fire would otherwise stack dozens of voices per second.
+    const now = performance.now();
+    if (now - sound.lastShotAt < 70) return;
+    sound.lastShotAt = now;
+    blip({ from: 880, to: 440, durationMs: 60, volume: 0.03 });
+  }
+  if (event.type === "hit") blip({ type: "triangle", from: 300, to: 220, durationMs: 70, volume: 0.06 });
+  if (event.type === "kill") blip({ type: "triangle", from: 520, to: 120, durationMs: 140, volume: 0.07 });
+  if (event.type === "hurt") blip({ type: "sawtooth", from: 180, to: 50, durationMs: 320, volume: 0.12 });
+  if (event.type === "cleared") {
+    blip({ type: "sine", from: 523, to: 784, durationMs: 220, volume: 0.08 });
+  }
+}
+
+function setMuted(muted) {
+  sound.muted = muted;
+  writeStored("aws-muted", muted ? "1" : "0");
+  elements.muteBtn.textContent = muted ? "Sound: off" : "Sound: on";
+  elements.muteBtn.setAttribute("aria-pressed", String(!muted));
+}
+
 function applyEvents(events) {
   for (const event of events ?? []) {
+    playEventSound(event);
     if (event.type === "kill") burst(event.x, event.y, ENEMY_COLORS[event.kind], event.kind === "brute" ? 26 : 14, 260);
     if (event.type === "hit") burst(event.x, event.y, "#ffffff", 5, 160);
     if (event.type === "hurt") {
@@ -294,6 +367,8 @@ function animate(timestamp) {
 }
 
 elements.startBtn.addEventListener("click", startGame);
+elements.muteBtn.addEventListener("click", () => setMuted(!sound.muted));
+setMuted(sound.muted);
 elements.pauseBtn.addEventListener("click", togglePause);
 elements.restartBtn.addEventListener("click", () => {
   resetGame();
@@ -403,6 +478,7 @@ document.addEventListener("keydown", (event) => {
     inputState.shoot = true;
   }
   if (key === "p") togglePause();
+  if (key === "m") setMuted(!sound.muted);
   refreshMoveVector();
 });
 
