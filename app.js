@@ -21,6 +21,25 @@ const elements = {
 
 const context = elements.canvas.getContext("2d");
 
+// Game logic runs in fixed arena units; only the backing store follows the screen.
+const ARENA_WIDTH = 960;
+const ARENA_HEIGHT = 540;
+
+function fitCanvas() {
+  const ratio = Math.min(window.devicePixelRatio || 1, 2.5);
+  const cssWidth = elements.canvas.clientWidth || ARENA_WIDTH;
+  const scale = (cssWidth * ratio) / ARENA_WIDTH;
+  const width = Math.round(ARENA_WIDTH * scale);
+  const height = Math.round(ARENA_HEIGHT * scale);
+  if (elements.canvas.width !== width || elements.canvas.height !== height) {
+    elements.canvas.width = width;
+    elements.canvas.height = height;
+  }
+  context.setTransform(scale, 0, 0, scale, 0, 0);
+}
+
+new ResizeObserver(fitCanvas).observe(elements.canvas);
+
 const ENEMY_COLORS = { grunt: "#ff6f8b", dasher: "#ffb347", brute: "#b18cff" };
 const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
 
@@ -166,8 +185,8 @@ const inputState = {
   moveX: 0,
   moveY: 0,
   shoot: false,
-  aimX: elements.canvas.width / 2,
-  aimY: elements.canvas.height / 2,
+  aimX: ARENA_WIDTH / 2,
+  aimY: ARENA_HEIGHT / 2,
   left: false,
   right: false,
   up: false,
@@ -182,7 +201,7 @@ const touchStick = { pointerId: null, originX: 0, originY: 0, x: 0, y: 0 };
 const STICK_RADIUS = 70;
 
 const appState = {
-  game: createInitialState({ width: elements.canvas.width, height: elements.canvas.height }),
+  game: createInitialState({ width: ARENA_WIDTH, height: ARENA_HEIGHT }),
   running: false,
   paused: false,
   lastFrameAt: 0,
@@ -328,7 +347,7 @@ function refreshMoveVector() {
 
 function resetGame() {
   shownChoices = "";
-  appState.game = createInitialState({ width: elements.canvas.width, height: elements.canvas.height });
+  appState.game = createInitialState({ width: ARENA_WIDTH, height: ARENA_HEIGHT });
   appState.running = false;
   appState.paused = false;
   appState.lastFrameAt = 0;
@@ -341,7 +360,7 @@ function resetGame() {
 
 function startGame() {
   if (appState.game.gameOver) {
-    appState.game = createInitialState({ width: elements.canvas.width, height: elements.canvas.height });
+    appState.game = createInitialState({ width: ARENA_WIDTH, height: ARENA_HEIGHT });
   }
 
   appState.running = true;
@@ -402,8 +421,8 @@ elements.restartBtn.addEventListener("click", () => {
 
 function aimAt(event) {
   const rect = elements.canvas.getBoundingClientRect();
-  inputState.aimX = ((event.clientX - rect.left) / rect.width) * elements.canvas.width;
-  inputState.aimY = ((event.clientY - rect.top) / rect.height) * elements.canvas.height;
+  inputState.aimX = ((event.clientX - rect.left) / rect.width) * ARENA_WIDTH;
+  inputState.aimY = ((event.clientY - rect.top) / rect.height) * ARENA_HEIGHT;
 }
 
 elements.canvas.addEventListener("pointermove", (event) => {
@@ -418,8 +437,8 @@ elements.canvas.addEventListener("pointermove", (event) => {
 function canvasPoint(event) {
   const rect = elements.canvas.getBoundingClientRect();
   return {
-    x: ((event.clientX - rect.left) / rect.width) * elements.canvas.width,
-    y: ((event.clientY - rect.top) / rect.height) * elements.canvas.height,
+    x: ((event.clientX - rect.left) / rect.width) * ARENA_WIDTH,
+    y: ((event.clientY - rect.top) / rect.height) * ARENA_HEIGHT,
   };
 }
 
@@ -444,7 +463,7 @@ function updateStick(event) {
 elements.canvas.addEventListener("pointerdown", (event) => {
   if (event.pointerType === "touch" && touchStick.pointerId === null) {
     const point = canvasPoint(event);
-    if (point.x < elements.canvas.width / 2) {
+    if (point.x < ARENA_WIDTH / 2) {
       elements.canvas.setPointerCapture(event.pointerId);
       touchStick.pointerId = event.pointerId;
       touchStick.originX = point.x;
