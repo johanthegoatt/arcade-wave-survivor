@@ -57,6 +57,7 @@ header h1 {
 
 #arena {
   display: block;
+  touch-action: none;
   width: 100%;
   aspect-ratio: 16 / 9;
 }

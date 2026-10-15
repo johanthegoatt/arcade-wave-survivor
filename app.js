@@ -30,6 +30,8 @@ const inputState = {
   down: false,
 };
 
+let firePointerId = null;
+
 const appState = {
   game: createInitialState({ width: elements.canvas.width, height: elements.canvas.height }),
   running: false,
@@ -202,19 +204,29 @@ elements.restartBtn.addEventListener("click", () => {
   startGame();
 });
 
-elements.canvas.addEventListener("mousemove", (event) => {
+function aimAt(event) {
   const rect = elements.canvas.getBoundingClientRect();
   inputState.aimX = ((event.clientX - rect.left) / rect.width) * elements.canvas.width;
   inputState.aimY = ((event.clientY - rect.top) / rect.height) * elements.canvas.height;
-});
+}
 
-elements.canvas.addEventListener("mousedown", () => {
+elements.canvas.addEventListener("pointermove", aimAt);
+
+elements.canvas.addEventListener("pointerdown", (event) => {
+  aimAt(event);
+  // Capture so a release outside the canvas still stops the gun.
+  elements.canvas.setPointerCapture(event.pointerId);
+  firePointerId = event.pointerId;
   inputState.shoot = true;
 });
 
-elements.canvas.addEventListener("mouseup", () => {
+function releaseFire(event) {
+  if (event.pointerId !== firePointerId) return;
+  firePointerId = null;
   inputState.shoot = false;
-});
+}
+elements.canvas.addEventListener("pointerup", releaseFire);
+elements.canvas.addEventListener("pointercancel", releaseFire);
 
 const MOVE_KEYS = {
   w: "up",
