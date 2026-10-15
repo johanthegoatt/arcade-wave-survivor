@@ -45,12 +45,31 @@ function spawnEnemy(state, randomFn = Math.random) {
     };
   }
 
+  const kind = pickEnemyKind(state.wave, randomFn);
+  const spec = ENEMY_KINDS[kind];
   return {
     x: point.x,
     y: point.y,
-    radius: 13,
-    speed: 68 + state.wave * 7,
+    kind,
+    radius: spec.radius,
+    speed: (68 + state.wave * 7) * spec.speedScale,
+    hp: spec.hp,
   };
+}
+
+// Dashers arrive from wave 3 and brutes from wave 5, so early waves teach
+// movement before the mix forces target priority.
+export const ENEMY_KINDS = {
+  grunt: { radius: 13, speedScale: 1, hp: 1, score: 14 },
+  dasher: { radius: 9, speedScale: 1.65, hp: 1, score: 20 },
+  brute: { radius: 20, speedScale: 0.6, hp: 3, score: 40 },
+};
+
+export function pickEnemyKind(wave, randomFn = Math.random) {
+  const roll = randomFn();
+  if (wave >= 5 && roll < Math.min(0.25, 0.05 * (wave - 4))) return "brute";
+  if (wave >= 3 && roll > 1 - Math.min(0.35, 0.08 * (wave - 2))) return "dasher";
+  return "grunt";
 }
 
 export function spawnWave(state, randomFn = Math.random) {
@@ -201,6 +220,7 @@ export function stepGame(state, input = {}, dtMs = 16, randomFn = Math.random) {
 
   const remainingBullets = [];
   const enemyAlive = new Array(next.enemies.length).fill(true);
+  const enemyHp = [];
 
   for (const bullet of next.bullets) {
     let hitsLeft = bullet.hitsLeft ?? 1;
@@ -215,10 +235,13 @@ export function stepGame(state, input = {}, dtMs = 16, randomFn = Math.random) {
       const collide = dx * dx + dy * dy <= (bullet.radius + enemy.radius) ** 2;
       if (!collide) continue;
 
-      enemyAlive[i] = false;
-      next.score += 14;
       hitsLeft -= 1;
       if (enemy.id !== undefined) hitIds.push(enemy.id);
+      const hp = (enemyHp[i] ?? enemy.hp ?? 1) - 1;
+      enemyHp[i] = hp;
+      if (hp > 0) continue;
+      enemyAlive[i] = false;
+      next.score += ENEMY_KINDS[enemy.kind ?? "grunt"].score;
     }
 
     if (hitsLeft > 0) {
@@ -227,7 +250,9 @@ export function stepGame(state, input = {}, dtMs = 16, randomFn = Math.random) {
   }
 
   next.bullets = remainingBullets;
-  next.enemies = next.enemies.filter((_, i) => enemyAlive[i]);
+  next.enemies = next.enemies
+    .map((enemy, i) => (enemyHp[i] === undefined ? enemy : { ...enemy, hp: enemyHp[i] }))
+    .filter((_, i) => enemyAlive[i]);
 
   if (next.player.invulnMs <= 0) {
     const playerRadius = next.player.radius;

@@ -18,6 +18,8 @@ const elements = {
 
 const context = elements.canvas.getContext("2d");
 
+const ENEMY_COLORS = { grunt: "#ff6f8b", dasher: "#ffb347", brute: "#b18cff" };
+
 const inputState = {
   moveX: 0,
   moveY: 0,
@@ -114,10 +116,18 @@ function drawScene() {
   }
 
   for (const enemy of game.enemies) {
-    context.fillStyle = "#ff6f8b";
+    context.fillStyle = ENEMY_COLORS[enemy.kind] ?? ENEMY_COLORS.grunt;
     context.beginPath();
     context.arc(enemy.x, enemy.y, enemy.radius, 0, Math.PI * 2);
     context.fill();
+    if (enemy.kind === "brute") {
+      // Shrinking ring shows how many hits are left.
+      context.strokeStyle = "rgba(255,255,255,0.8)";
+      context.lineWidth = 3;
+      context.beginPath();
+      context.arc(enemy.x, enemy.y, enemy.radius + 5, -Math.PI / 2, -Math.PI / 2 + (Math.PI * 2 * enemy.hp) / 3);
+      context.stroke();
+    }
   }
 
   context.fillStyle = game.player.invulnMs > 0 ? "#ffd46b" : "#6bffb7";

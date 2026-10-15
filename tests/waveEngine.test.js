@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createInitialState, spawnWave, stepGame } from "../src/waveEngine.js";
+import { createInitialState, spawnWave, stepGame, pickEnemyKind, ENEMY_KINDS } from "../src/waveEngine.js";
 
 test("createInitialState sets baseline values", () => {
   const state = createInitialState({ width: 900, height: 500 }, () => 0.4);
@@ -168,4 +168,34 @@ test("diagonal key input is not faster than straight movement", () => {
   const next = stepGame(state, { moveX: 1, moveY: 1 }, 100, () => 0.2);
   const moved = Math.hypot(next.player.x - state.player.x, next.player.y - state.player.y);
   assert.ok(Math.abs(moved - state.player.speed * 0.1) < 1e-9);
+});
+
+test("early waves only spawn grunts", () => {
+  for (const roll of [0, 0.01, 0.5, 0.99]) {
+    assert.equal(pickEnemyKind(1, () => roll), "grunt");
+    assert.equal(pickEnemyKind(2, () => roll), "grunt");
+  }
+});
+
+test("later waves mix in dashers and brutes", () => {
+  assert.equal(pickEnemyKind(3, () => 0.99), "dasher");
+  assert.equal(pickEnemyKind(5, () => 0.01), "brute");
+  assert.equal(pickEnemyKind(5, () => 0.5), "grunt");
+});
+
+test("a brute survives two hits and dies on the third", () => {
+  let state = createInitialState({}, () => 0.2);
+  state.enemies = [{ id: 99, kind: "brute", x: 400, y: 300, radius: 20, speed: 0, hp: 3 }];
+  state.player.x = 100;
+  state.player.y = 100;
+  for (let shot = 1; shot <= 3; shot += 1) {
+    state.bullets = [{ x: 400, y: 300, vx: 0, vy: 0, radius: 4, hitsLeft: 1 }];
+    state = stepGame(state, {}, 16, () => 0.2);
+    if (shot < 3) {
+      assert.equal(state.enemies.length, 1);
+      assert.equal(state.enemies[0].hp, 3 - shot);
+      assert.equal(state.score, 0);
+    }
+  }
+  assert.equal(state.score, ENEMY_KINDS.brute.score);
 });
